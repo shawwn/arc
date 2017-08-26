@@ -7,6 +7,7 @@
 (require (lib "process.ss"))
 (require (lib "pretty.ss"))
 (require (lib "foreign.ss"))
+(require racket/unsafe/ops)
 (unsafe!)
 
 ; compile an Arc expression into a Scheme expression,
@@ -1163,54 +1164,22 @@
 (xdef details (lambda (c)
                  (disp-to-string (exn-message c))))
 
-(xdef scar (lambda (x val) 
-              (if (string? x) 
-                  (string-set! x 0 val)
-                  (x-set-car! x val))
-              val))
 
-(xdef scdr (lambda (x val) 
-              (if (string? x)
-                  (err "Can't set cdr of a string" x)
-                  (x-set-cdr! x val))
-              val))
+(define (ar-scar x val)
+  (cond ((string? x)
+         (string-set! x 0 val))
+        ((pair? x)
+         (unsafe-set-mcar! x val))
+        (#t (raise-type-error 'scar "pair or string" x)))
+  val)
 
-; decide at run-time whether the underlying mzscheme supports
-; set-car! and set-cdr!, since I can't figure out how to do it
-; at compile time.
+(xdef scar ar-scar)
 
-(define (x-set-car! p v)
-  (let ((fn (namespace-variable-value 'set-car! #t (lambda () #f))))
-    (if (procedure? fn)
-        (fn p v)
-        (n-set-car! p v))))
-
-(define (x-set-cdr! p v)
-  (let ((fn (namespace-variable-value 'set-cdr! #t (lambda () #f))))
-    (if (procedure? fn)
-        (fn p v)
-        (n-set-cdr! p v))))
-
-; Eli's code to modify mzscheme-4's immutable pairs.
-
-;; to avoid a malloc on every call, reuse a single pointer, but make
-;; it thread-local to avoid races
-(define ptr (make-thread-cell #f))
-(define (get-ptr)
-  (or (thread-cell-ref ptr)
-      (let ([p (malloc _scheme 1)]) (thread-cell-set! ptr p) p)))
-
-;; set a pointer to the cons cell, then dereference it as a pointer,
-;; and bang the new value in the given offset
-(define (set-ca/dr! offset who p x)
-  (if (pair? p)
-    (let ([p* (get-ptr)])
-      (ptr-set! p* _scheme p)
-      (ptr-set! (ptr-ref p* _pointer 0) _scheme offset x))
-    (raise-type-error who "pair" p)))
-
-(define (n-set-car! p x) (set-ca/dr! 1 'set-car! p x))
-(define (n-set-cdr! p x) (set-ca/dr! 2 'set-cdr! p x))
+(xdef scdr (lambda (x val)
+             (if (pair? x)
+                 (unsafe-set-mcdr! x val)
+                 (raise-type-error 'scdr "pair" x))
+             val))
 
 ; When and if cdr of a string returned an actual (eq) tail, could
 ; say (if (string? x) (string-replace! x val 1) ...) in scdr, but
@@ -1236,7 +1205,7 @@
     val))
 
 (define (nth-set! lst n val)
-  (x-set-car! (list-tail lst n) val))
+  (unsafe-set-mcar! (list-tail lst n) val))
 
 ; rewrite to pass a (true) gensym instead of #f in case var bound to #f
 
