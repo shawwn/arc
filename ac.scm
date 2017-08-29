@@ -262,7 +262,7 @@
 ; (if nil a b c) -> (if b c)
 
 (define (ac-if args env)
-  (cond ((null? args) '())
+  (cond ((null? args) (list 'quote ar-nil))
         ((null? (cdr args)) (ac (car args) env))
         (#t `(if (not (ar-false? ,(ac (car args) env)))
                  ,(ac (cadr args) env)
