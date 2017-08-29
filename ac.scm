@@ -1205,7 +1205,10 @@
     val))
 
 (define (nth-set! lst n val)
-  (unsafe-set-mcar! (list-tail lst n) val))
+  (let ((x (list-tail lst n)))
+    (if (pair? x)
+        (unsafe-set-mcar! x val)
+      (raise-type-error 'nth-set! "pair" x))))
 
 ; rewrite to pass a (true) gensym instead of #f in case var bound to #f
 
