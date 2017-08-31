@@ -545,11 +545,12 @@
 
 (mac caselet (var expr . args)
   (let ex (afn (args)
-            (if (no (cdr args)) 
+            (if (no (cdr args))
                 (car args)
-                `(if (is ,var ',(car args))
-                     ,(cadr args)
-                     ,(self (cddr args)))))
+                (let op (if (acons (car args)) 'mem 'is)
+                  `(if (,op ,var ',(car args))
+                       ,(cadr args)
+                       ,(self (cddr args))))))
     `(let ,var ,expr ,(ex args))))
 
 (mac case (expr . args)
