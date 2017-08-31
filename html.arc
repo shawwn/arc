@@ -56,7 +56,7 @@
   `(aif ,val (pr ,(+ " " key "=") it)))
 
 (def opsym (key val)
-  `(pr ,(+ " " key "=") ,val))
+  `(aif ,val (pr ,(+ " " key "=") it)))
 
 (def opsel (key val)
   `(if ,val (pr " selected")))
@@ -402,7 +402,8 @@
 ; strings is terribly inefficient in Mzscheme.
 
 (defmemo valid-url (url)
-  (and (len> url 10)
+  (and url
+       (len> url 10)
        (or (begins url "http://")
            (begins url "https://"))
        (~find [in _ #\< #\> #\" #\'] url)))
