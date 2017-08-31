@@ -319,8 +319,8 @@
 (def latest-items (test (o stop) (o n))
   (accum a
     (catch 
-      (down id maxid* 1
-        (let i (item id)
+      (down id maxid*
+        (let i (item (+ id 1))
           (if (or (and stop (stop i)) (and n (<= n 0))) 
               (throw))
           (when (test i) 

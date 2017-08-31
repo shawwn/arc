@@ -449,20 +449,20 @@
                 (do ,@body ,update (,gfn ,test))))
           ,test))))
 
-(mac for (v init max . body)
-  (w/uniq (gi gm)
-    `(with (,v nil ,gi ,init ,gm (+ ,max 1))
-       (loop (assign ,v ,gi) (< ,v ,gm) (assign ,v (+ ,v 1))
+(mac for (v max . body)
+  (w/uniq (gm)
+    `(with (,v nil ,gm ,max)
+       (loop (assign ,v 0) (< ,v ,gm) (assign ,v (+ ,v 1))
          ,@body))))
 
-(mac down (v init min . body)
+(mac down (v min . body)
   (w/uniq (gi gm)
-    `(with (,v nil ,gi ,init ,gm (- ,min 1))
-       (loop (assign ,v ,gi) (> ,v ,gm) (assign ,v (- ,v 1))
+    `(with (,v nil ,gm (- ,min 1))
+       (loop (assign ,v ,gm) (>= ,v 0) (assign ,v (- ,v 1))
          ,@body))))
 
 (mac repeat (n . body)
-  `(for ,(uniq) 1 ,n ,@body))
+  `(for ,(uniq) ,n ,@body))
 
 ; could bind index instead of gensym
 
@@ -478,7 +478,7 @@
            (isa ,gseq 'table)
             (maptable (fn ,var ,@body)
                       ,gseq)
-            (for ,gv 0 (- (len ,gseq) 1)
+            (for ,gv (len ,gseq)
               (let ,var (,gseq ,gv) ,@body))))))
 
 ; (nthcdr x y) = (cut y x).
@@ -489,7 +489,7 @@
                           end)
     (if (isa seq 'string)
         (let s2 (newstring (- end start))
-          (for i 0 (- end start 1)
+          (for i (- end start)
             (= (s2 i) (seq (+ start i))))
           s2)
         (firstn (- end start) (nthcdr start seq)))))
@@ -876,7 +876,7 @@
       s)))
 
 (mac forlen (var s . body)
-  `(for ,var 0 (- (len ,s) 1) ,@body))
+  `(for ,var (len ,s) ,@body))
 
 (mac on (var s . body)
   (if (is var 'index)

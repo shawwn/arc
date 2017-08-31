@@ -82,7 +82,7 @@
 (defop blog req
   (let user (get-user req)
     (blogpage
-      (for i 0 4
+      (for i 5
         (awhen (posts* (- maxid* i)) 
           (display-post user it)
           (br 3))))))
