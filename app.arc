@@ -93,7 +93,7 @@
     (br2)
     (aform (fn (req)
              (when-umatch user req
-               (with (u (arg req "u") p (arg req "p"))
+               (let (u (arg req "u") p (arg req "p"))
                  (if (or (no u) (no p) (is u "") (is p ""))
                       (pr "Bad data.")
                      (user-exists u)
@@ -172,7 +172,7 @@
 
 (def create-handler (req switch afterward)
   (logout-user (get-user req))
-  (with (user (arg req "u") pw (arg req "p"))
+  (let (user (arg req "u") pw (arg req "p"))
     (aif (bad-newacct user pw)
          (failed-login switch it afterward)
          (do (create-acct user pw)
@@ -182,7 +182,7 @@
   (= (logins* user) ip)
   (prcookie cookie)
   (if (acons afterward)
-      (let (f url) afterward
+      (let ((f url) afterward)
         (f user ip)
         url)
       (do (prn)
@@ -403,7 +403,7 @@
                     (let name (sym k)
                       (awhen (find [is (cadr _) name] fields)
                         ; added sho to fix bug
-                        (let (typ id val sho mod) it
+                        (let ((typ id val sho mod) it)
                           (when (and mod v)
                             (let newval (readvar typ v fail*)
                               (unless (is newval fail*)
@@ -454,8 +454,8 @@
                       (and (no nolinks)
                            (or (litmatch "http://" s i) 
                                (litmatch "https://" s i)))
-                       (withs (n   (urlend s i)
-                               url (clean-url (cut s i n)))
+                       (let (n   (urlend s i)
+                             url (clean-url (cut s i n)))
                          (tag (a href url rel 'nofollow)
                            (pr (if (no maxurl) url (ellipsize url maxurl))))
                          (= i (- n 1)))
@@ -580,18 +580,18 @@
                              " am"))))
 
 (def parse-time (s)
-  (let (nums (o label "")) (halve s letter)
-    (with ((h (o m 0)) (map int (tokens nums ~digit))
-           cleanlabel  (downcase (rem ~alphadig label)))
-      (+ (* (if (is h 12)
-                 (if (in cleanlabel "am" "midnight")
-                     0
-                     12)
-                (is cleanlabel "am")
-                 h
-                 (+ h 12))
-            60)
-          m))))
+  (let ((nums (o label "")) (halve s letter)
+        (h (o m 0)) (map int (tokens nums ~digit))
+        cleanlabel  (downcase (rem ~alphadig label)))
+    (+ (* (if (is h 12)
+               (if (in cleanlabel "am" "midnight")
+                   0
+                   12)
+              (is cleanlabel "am")
+               h
+               (+ h 12))
+          60)
+        m)))
 
 
 (= months* '("January" "February" "March" "April" "May" "June" "July"
@@ -624,7 +624,7 @@
         (err (string "Invalid date: " s)))))
 
 (def date-nums (s)
-  (with ((ynow mnow dnow) (date)
+  (let ((ynow mnow dnow) (date)
          toks             (tokens s ~alphadig))
     (if (all [all digit _] toks)
          (let nums (map int toks)
@@ -637,15 +637,15 @@
                    (firstn 3 nums)
                    (rev (firstn 3 nums)))))
         ([all digit _] (car toks))
-         (withs ((ds ms ys) toks
-                 d          (int ds))
+         (let ((ds ms ys) toks
+               d          (int ds))
            (aif (monthnum ms)
                 (list (or (errsafe (int ys)) ynow) 
                       it
                       d)
                 nil))
         (monthnum (car toks))
-         (let (ms ds ys) toks
+         (let ((ms ds ys) toks)
            (aif (errsafe (int ds))
                 (list (or (errsafe (int ys)) ynow) 
                       (monthnum (car toks))

@@ -166,8 +166,8 @@
 (def load-items ()
   (system (+ "rm " storydir* "*.tmp"))
   (pr "load items: ") 
-  (with (items (table)
-         ids   (sort > (map int (dir storydir*))))
+  (let (items (table)
+        ids   (sort > (map int (dir storydir*))))
     (if ids (= maxid* (car ids)))
     (noisy-each 100 id (firstn initload* ids)
       (let i (load-item id)
@@ -414,7 +414,7 @@
 
 (mac fulltop (user lid label title whence . body)
   (w/uniq (gu gi gl gt gw)
-    `(with (,gu ,user ,gi ,lid ,gl ,label ,gt ,title ,gw ,whence)
+    `(let (,gu ,user ,gi ,lid ,gl ,label ,gt ,title ,gw ,whence)
        (npage (+ this-site* (if ,gt (+ bar* ,gt) ""))
          (if (check-procrast ,gu)
              (do (pagetop 'full ,gi ,gl ,gt ,gu ,gw)
@@ -424,7 +424,7 @@
 
 (mac longpage (user t1 lid label title whence . body)
   (w/uniq (gu gt gi)
-    `(with (,gu ,user ,gt ,t1 ,gi ,lid)
+    `(let (,gu ,user ,gt ,t1 ,gi ,lid)
        (fulltop ,gu ,gi ,label ,title ,whence
          (trtd ,@body)
          (trtd (vspace 10)
@@ -657,8 +657,8 @@ function vote(node) {
 (mac opexpand (definer name parms . body)
   (w/uniq gr
     `(,definer ,name ,gr
-       (with (user (get-user ,gr) ip (,gr 'ip))
-         (with ,(and parms (mappend [list _ (list 'arg gr (string _))]
+       (let (user (get-user ,gr) ip (,gr 'ip))
+         (let ,(and parms (mappend [list _ (list 'arg gr (string _))]
                                     parms))
            (newslog ip user ',name ,@parms)
            ,@body)))))
@@ -716,7 +716,7 @@ function vote(node) {
                (fn () (newsadmin-page user))) 
     (br2)
     (aform (fn (req)
-             (with (user (get-user req) subject (arg req "id"))
+             (let (user (get-user req) subject (arg req "id"))
                (if (profile subject)
                    (do (killallby subject)
                        (submitted-page user subject))
@@ -763,13 +763,13 @@ function vote(node) {
 (= topcolor-threshold* 250)
 
 (def user-fields (user subject)
-  (withs (e (editor user) 
-          a (admin user) 
-          w (is user subject)
-          k (and w (> (karma user) topcolor-threshold*))
-          u (or a w)
-          m (or a (and (member user) w))
-          p (profile subject))
+  (let (e (editor user) 
+        a (admin user) 
+        w (is user subject)
+        k (and w (> (karma user) topcolor-threshold*))
+        u (or a w)
+        m (or a (and (member user) w))
+        p (profile subject))
     `((string  user       ,subject                                  t   nil)
       (string  name       ,(p 'name)                               ,m  ,m)
       (string  created    ,(text-age:user-age subject)              t   nil)
@@ -950,8 +950,8 @@ function vote(node) {
           (url-for
             (afnid (fn (req)
                      (prn)
-                     (with (url  (url-for it)     ; it bound by afnid
-                            user (get-user req))
+                     (let (url  (url-for it)     ; it bound by afnid
+                           user (get-user req))
                        (newslog req!ip user 'more label)
                        (longpage user (msec) nil label title url
                          (apply f user items label title url args))))))
@@ -1102,9 +1102,9 @@ function vote(node) {
 ; know how to generate an auth arg that matches each user's cookie.
 
 (newsop vote (by for dir auth whence)
-  (with (i      (safe-item for)
-         dir    (saferead dir)
-         whence (if whence (urldecode whence) "news"))
+  (let (i      (safe-item for)
+        dir    (saferead dir)
+        whence (if whence (urldecode whence) "news"))
     (if (no i)
          (pr "No such item.")
         (no (in dir 'up 'down))
@@ -1351,8 +1351,8 @@ function vote(node) {
 (def vote-for (user i (o dir 'up))
   (unless (or ((votes user) i!id) 
               (and (~live i) (isnt user i!by)))
-    (withs (ip   (logins* user)
-            vote (list (seconds) ip user dir i!score))
+    (let (ip   (logins* user)
+          vote (list (seconds) ip user dir i!score))
       (unless (or (and (or (ignored user) (check-key user 'novote))
                        (isnt user i!by))
                   (and (is dir 'down)
@@ -1558,7 +1558,7 @@ function vote(node) {
        (let toks (parse-site (rem #\space url))
          (if (isa (saferead (car toks)) 'int)
              (tostring (prall toks "" "."))
-             (let (t1 t2 t3 . rest) toks  
+             (let ((t1 t2 t3 . rest) toks)
                (if (and (~in t3 nil "www")
                         (or (mem t1 multi-tld-countries*) 
                             (mem t2 long-domains*)))
@@ -1793,7 +1793,7 @@ function vote(node) {
 (def note-baditem (user ip)
   (unless (admin user)
     (++ (baditemreqs* ip 0))
-    (with (r (requests/ip* ip) b (baditemreqs* ip))
+    (let (r (requests/ip* ip) b (baditemreqs* ip))
        (when (and (> r 500) (> (/ b r) baditem-threshold*))
          (set (throttle-ips* ip))))))
 
@@ -1802,9 +1802,9 @@ function vote(node) {
 (def news-type (i) (and i (in i!type 'story 'comment 'poll 'pollopt)))
 
 (def item-page (user i)
-  (with (title (and (cansee user i)
-                    (or i!title (aand i!text (ellipsize (striptags it)))))
-         here (item-url i!id))
+  (let (title (and (cansee user i)
+                   (or i!title (aand i!text (ellipsize (striptags it)))))
+        here (item-url i!id))
     (longpage user (msec) nil nil title here
       (tab (display-item nil i user here)
            (display-item-text i user)
@@ -1881,7 +1881,7 @@ function vote(node) {
 
 (= (fieldfn* 'story)
    (fn (user s)
-     (with (a (admin user)  e (editor user)  x (canedit user s))
+     (let (a (admin user)  e (editor user)  x (canedit user s))
        `((string1 title     ,s!title        t ,x)
          (url     url       ,s!url          t ,e)
          (mdtext2 text      ,s!text         t ,x)
@@ -1889,20 +1889,20 @@ function vote(node) {
 
 (= (fieldfn* 'comment)
    (fn (user c)
-     (with (a (admin user)  e (editor user)  x (canedit user c))
+     (let (a (admin user)  e (editor user)  x (canedit user c))
        `((mdtext  text      ,c!text         t ,x)
          ,@(standard-item-fields c a e x)))))
 
 (= (fieldfn* 'poll)
    (fn (user p)
-     (with (a (admin user)  e (editor user)  x (canedit user p))
+     (let (a (admin user)  e (editor user)  x (canedit user p))
        `((string1 title     ,p!title        t ,x)
          (mdtext2 text      ,p!text         t ,x)
          ,@(standard-item-fields p a e x)))))
 
 (= (fieldfn* 'pollopt)
    (fn (user p)
-     (with (a (admin user)  e (editor user)  x (canedit user p))
+     (let (a (admin user)  e (editor user)  x (canedit user p))
        `((string  title     ,p!title        t ,x)
          (url     url       ,p!url          t ,x)
          (mdtext2 text      ,p!text         t ,x)
@@ -2139,8 +2139,8 @@ function vote(node) {
   (link title (+ "reply?id=" i!id "&whence=" (urlencode whence))))
 
 (newsop reply (id whence)
-  (with (i      (safe-item id)
-         whence (or (only.urldecode whence) "news"))
+  (let (i      (safe-item id)
+        whence (or (only.urldecode whence) "news"))
     (if (only.comments-active i)
         (if user
             (addcomment-page i user whence)
@@ -2169,9 +2169,9 @@ function vote(node) {
 
 (def threads-page (user subject)
   (if (profile subject)
-      (withs (title (+ subject "'s comments")
-              label (if (is user subject) "threads" title)
-              here  (threads-url subject))
+      (let (title (+ subject "'s comments")
+            label (if (is user subject) "threads" title)
+            here  (threads-url subject))
         (longpage user (msec) nil label title here
           (awhen (keep [and (cansee user _) (~subcomment _)]
                        (comments subject maxend*))
@@ -2218,8 +2218,8 @@ function vote(node) {
 
 (def submitted-page (user subject)
   (if (profile subject)
-      (with (label (+ subject "'s submissions")
-             here  (submitted-url subject))
+      (let (label (+ subject "'s submissions")
+            here  (submitted-url subject))
         (longpage user (msec) nil label label here
           (if (or (no (ignored subject))
                   (is user subject)
@@ -2432,8 +2432,8 @@ first asterisk isn't whitespace.
   (minipage "Scrubrules"
     (when msg (pr msg) (br2))
     (uform user req
-           (with (froms (lines (arg req "from"))
-                  tos   (lines (arg req "to")))
+           (let (froms (lines (arg req "from"))
+                 tos   (lines (arg req "to")))
              (if (is (len froms) (len tos))
                  (do (todisk scrubrules* (map list froms tos))
                      (scrub-page user scrubrules* "Changes saved."))
@@ -2457,8 +2457,8 @@ first asterisk isn't whitespace.
 (adop badsites ()
   (sptab 
     (row "Dead" "Days" "Site" "O" "K" "I" "Users")
-    (each (site deads) (with (banned (banned-site-items)
-                              pairs  (killedsites))
+    (each (site deads) (let (banned (banned-site-items)
+                             pairs  (killedsites))
                          (+ pairs (map [list _ (banned _)]
                                        (rem (fn (d)
                                               (some [caris _ d] pairs))
@@ -2484,7 +2484,7 @@ first asterisk isn't whitespace.
   (let bads (table [each-loaded-item i
                      (awhen (and i!dead (sitename i!url))
                        (push i (_ it)))])
-    (with (acc nil deadcount (table))
+    (let (acc nil deadcount (table))
       (each (site items) bads
         (let n (len items)
           (when (> n 2)
@@ -2505,8 +2505,8 @@ first asterisk isn't whitespace.
 ; if < n days ago.
 
 (adop badips ()
-  (withs ((bads goods) (badips)
-          (subs ips)   (sorted-badips bads goods))
+  (let ((bads goods) (badips)
+        (subs ips)   (sorted-badips bads goods))
     (sptab
       (row "IP" "Days" "Dead" "Live" "Users")
       (each ip ips
@@ -2529,7 +2529,7 @@ first asterisk isn't whitespace.
                   (pr " "))))))))
 
 (defcache badips 300
-  (with (bads (table) goods (table))
+  (let (bads (table) goods (table))
     (each-loaded-item s
       (if (and s!dead (commentable s))
           (push s (bads  s!ip))
@@ -2539,11 +2539,11 @@ first asterisk isn't whitespace.
     (list bads goods)))
 
 (def sorted-badips (bads goods)
-  (withs (ips  (let ips (rem [len< (bads _) 2] (keys bads))
-                (+ ips (rem [mem _ ips] (keys banned-ips*))))
-          subs (table 
-                 [each ip ips
-                   (= (_ ip) (dedup (map !by (+ (bads ip) (goods ip)))))]))
+  (let (ips  (let ips (rem [len< (bads _) 2] (keys bads))
+               (+ ips (rem [mem _ ips] (keys banned-ips*))))
+        subs (table 
+               [each ip ips
+                 (= (_ ip) (dedup (map !by (+ (bads ip) (goods ip)))))]))
     (list subs
           (sort (compare > (memo [badness (subs _) (bads _) (goods _)]))
                 ips))))

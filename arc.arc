@@ -98,19 +98,13 @@
 
 (def alref (al key) (cadr (assoc key al)))
 
-(mac with (parms . body)
-  `((fn ,(map1 car (pair parms))
-     ,@body)
-    ,@(map1 cadr (pair parms))))
-
-(mac let (var val . body)
-  `(with (,var ,val) ,@body))
-
-(mac withs (parms . body)
-  (if (no parms) 
-      `(do ,@body)
-      `(let ,(car parms) ,(cadr parms) 
-         (withs ,(cddr parms) ,@body))))
+(mac let (bs . body)
+  (if (atom bs)       `(let (,bs ,(car body)) ,@(cdr body))
+      (no bs)         `(do ,@body)
+      (no (cddr bs))  `((fn (,(car bs)) ,@body) ,(cadr bs))
+    `(let (,(car bs) ,(cadr bs))
+       (let ,(cddr bs)
+         ,@body))))
 
 ; Rtm prefers to overload + to do this
 
@@ -163,7 +157,7 @@
 
 (mac w/uniq (names . body)
   (if (acons names)
-      `(with ,(apply + nil (map1 (fn (n) (list n '(uniq)))
+      `(let ,(apply + nil (map1 (fn (n) (list n '(uniq)))
                              names))
          ,@body)
       `(let ,names (uniq) ,@body)))
@@ -259,8 +253,8 @@
 
 (def map (f . seqs)
   (if (some [isa _ 'string] seqs) 
-       (withs (n   (apply min (map len seqs))
-               new (newstring n))
+       (let (n   (apply min (map len seqs))
+             new (newstring n))
          ((afn (i)
             (if (is i n)
                 new
@@ -313,15 +307,8 @@
 (mac atomic body
   `(atomic-invoke (fn () ,@body)))
 
-(mac atlet args
-  `(atomic (let ,@args)))
-  
-(mac atwith args
-  `(atomic (with ,@args)))
-
-(mac atwiths args
-  `(atomic (withs ,@args)))
-
+(mac atlet body
+  `(atomic (let ,@body)))
 
 ; setforms returns (vars get set) for a place based on car of an expr
 ;  vars is a list of gensyms alternating with expressions whose vals they
@@ -342,7 +329,7 @@
   (w/uniq gexpr
     `(sref setter 
            (fn (,gexpr)
-             (let ,parms (cdr ,gexpr)
+             (let (,parms (cdr ,gexpr))
                ,@body))
            ',name)))
 
@@ -429,9 +416,9 @@
 (def expand= (place val)
   (if (and (isa place 'sym) (~ssyntax place))
       `(assign ,place ,val)
-      (let (vars prev setter) (setforms place)
+      (let ((vars prev setter) (setforms place))
         (w/uniq g
-          `(atwith ,(+ vars (list g val))
+          `(atlet ,(+ vars (list g val))
              (,setter ,g))))))
 
 (def expand=list (terms)
@@ -451,13 +438,13 @@
 
 (mac for (v init max . body)
   (w/uniq (gi gm)
-    `(with (,v nil ,gi ,init ,gm (+ ,max 1))
+    `(let (,v nil ,gi ,init ,gm (+ ,max 1))
        (loop (assign ,v ,gi) (< ,v ,gm) (assign ,v (+ ,v 1))
          ,@body))))
 
 (mac down (v init min . body)
   (w/uniq (gi gm)
-    `(with (,v nil ,gi ,init ,gm (- ,min 1))
+    `(let (,v nil ,gi ,init ,gm (- ,min 1))
        (loop (assign ,v ,gi) (> ,v ,gm) (assign ,v (- ,v 1))
          ,@body))))
 
@@ -472,14 +459,14 @@
        (if (alist ,gseq)
             ((rfn ,gf (,gv)
                (when (acons ,gv)
-                 (let ,var (car ,gv) ,@body)
+                 (let (,var (car ,gv)) ,@body)
                  (,gf (cdr ,gv))))
              ,gseq)
            (isa ,gseq 'table)
             (maptable (fn ,var ,@body)
                       ,gseq)
             (for ,gv 0 (- (len ,gseq) 1)
-              (let ,var (,gseq ,gv) ,@body))))))
+              (let (,var (,gseq ,gv)) ,@body))))))
 
 ; (nthcdr x y) = (cut y x).
 
@@ -497,7 +484,7 @@
 (mac whilet (var test . body)
   (w/uniq (gf gp)
     `((rfn ,gf (,gp)
-        (let ,var ,gp
+        (let (,var ,gp)
           (when ,var ,@body (,gf ,test))))
       ,test)))
 
@@ -551,33 +538,33 @@
                   `(if (,op ,var ',(car args))
                        ,(cadr args)
                        ,(self (cddr args))))))
-    `(let ,var ,expr ,(ex args))))
+    `(let (,var ,expr) ,(ex args))))
 
 (mac case (expr . args)
   `(caselet ,(uniq) ,expr ,@args))
 
 (mac push (x place)
   (w/uniq gx
-    (let (binds val setter) (setforms place)
+    (let ((binds val setter) (setforms place))
       `(let ,gx ,x
-         (atwiths ,binds
+         (atlet ,binds
            (,setter (cons ,gx ,val)))))))
 
 (mac swap (place1 place2)
   (w/uniq (g1 g2)
-    (with ((binds1 val1 setter1) (setforms place1)
-           (binds2 val2 setter2) (setforms place2))
-      `(atwiths ,(+ binds1 (list g1 val1) binds2 (list g2 val2))
+    (let ((binds1 val1 setter1) (setforms place1)
+          (binds2 val2 setter2) (setforms place2))
+      `(atlet ,(+ binds1 (list g1 val1) binds2 (list g2 val2))
          (,setter1 ,g2)
          (,setter2 ,g1)))))
 
 (mac rotate places
-  (with (vars (map [uniq] places)
-         forms (map setforms places))
-    `(atwiths ,(mappend (fn (g (binds val setter))
-                          (+ binds (list g val)))
-                        vars
-                        forms)
+  (let (vars (map [uniq] places)
+        forms (map setforms places))
+    `(atlet ,(mappend (fn (g (binds val setter))
+                        (+ binds (list g val)))
+                      vars
+                      forms)
        ,@(map (fn (g (binds val setter))
                 (list setter g))
               (+ (cdr vars) (list (car vars)))
@@ -585,8 +572,8 @@
 
 (mac pop (place)
   (w/uniq g
-    (let (binds val setter) (setforms place)
-      `(atwiths ,(+ binds (list g val))
+    (let ((binds val setter) (setforms place))
+      `(atlet ,(+ binds (list g val))
          (do1 (car ,g) 
               (,setter (cdr ,g)))))))
 
@@ -597,20 +584,20 @@
 
 (mac pushnew (x place . args)
   (w/uniq gx
-    (let (binds val setter) (setforms place)
-      `(atwiths ,(+ (list gx x) binds)
+    (let ((binds val setter) (setforms place))
+      `(atlet ,(+ (list gx x) binds)
          (,setter (adjoin ,gx ,val ,@args))))))
 
 (mac pull (test place)
   (w/uniq g
-    (let (binds val setter) (setforms place)
-      `(atwiths ,(+ (list g test) binds)
+    (let ((binds val setter) (setforms place))
+      `(atlet ,(+ (list g test) binds)
          (,setter (rem ,g ,val))))))
 
 (mac togglemem (x place . args)
   (w/uniq gx
-    (let (binds val setter) (setforms place)
-      `(atwiths ,(+ (list gx x) binds)
+    (let ((binds val setter) (setforms place))
+      `(atlet ,(+ (list gx x) binds)
          (,setter (if (mem ,gx ,val)
                       (rem ,gx ,val)
                       (adjoin ,gx ,val ,@args)))))))
@@ -619,31 +606,31 @@
   (if (isa place 'sym)
       `(= ,place (+ ,place ,i))
       (w/uniq gi
-        (let (binds val setter) (setforms place)
-          `(atwiths ,(+ binds (list gi i))
+        (let ((binds val setter) (setforms place))
+          `(atlet ,(+ binds (list gi i))
              (,setter (+ ,val ,gi)))))))
 
 (mac -- (place (o i 1))
   (if (isa place 'sym)
       `(= ,place (- ,place ,i))
       (w/uniq gi
-        (let (binds val setter) (setforms place)
-          `(atwiths ,(+ binds (list gi i))
+        (let ((binds val setter) (setforms place))
+          `(atlet ,(+ binds (list gi i))
              (,setter (- ,val ,gi)))))))
 
 ; E.g. (++ x) equiv to (zap + x 1)
 
 (mac zap (op place . args)
-  (with (gop    (uniq)
-         gargs  (map [uniq] args)
-         mix    (afn seqs 
-                  (if (some no seqs)
-                      nil
-                      (+ (map car seqs)
-                         (apply self (map cdr seqs))))))
-    (let (binds val setter) (setforms place)
-      `(atwiths ,(+ binds (list gop op) (mix gargs args))
-         (,setter (,gop ,val ,@gargs))))))
+  (let (gop    (uniq)
+        gargs  (map [uniq] args)
+        mix    (afn seqs 
+                 (if (some no seqs)
+                     nil
+                     (+ (map car seqs)
+                        (apply self (map cdr seqs)))))
+        (binds val setter) (setforms place))
+    `(atlet ,(+ binds (list gop op) (mix gargs args))
+       (,setter (,gop ,val ,@gargs)))))
 
 ; Can't simply mod pr to print strings represented as lists of chars,
 ; because empty string will get printed as nil.  Would need to rep strings
@@ -673,7 +660,7 @@
 (mac iflet (var expr then . rest)
   (w/uniq gv
     `(let ,gv ,expr
-       (if ,gv (let ,var ,gv ,then) ,@rest))))
+       (if ,gv (let (,var ,gv) ,then) ,@rest))))
 
 (mac whenlet (var expr . body)
   `(iflet ,var ,expr (do ,@body)))
@@ -697,7 +684,7 @@
 
 (mac accum (accfn . body)
   (w/uniq gacc
-    `(withs (,gacc nil ,accfn [push _ ,gacc])
+    `(let (,gacc nil ,accfn [push _ ,gacc])
        ,@body
        (rev ,gacc))))
 
@@ -705,7 +692,7 @@
 
 (mac drain (expr (o eof nil))
   (w/uniq (gacc gdone gres)
-    `(with (,gacc nil ,gdone nil)
+    `(let (,gacc nil ,gdone nil)
        (while (no ,gdone)
          (let ,gres ,expr
            (if (is ,gres ,eof)
@@ -718,7 +705,7 @@
 
 (mac whiler (var expr endval . body)
   (w/uniq gf
-    `(withs (,var nil ,gf (testify ,endval))
+    `(let (,var nil ,gf (testify ,endval))
        (while (no (,gf (= ,var ,expr)))
          ,@body))))
   
@@ -769,7 +756,7 @@
 
 (let expander 
      (fn (f var name body)
-       `(let ,var (,f ,name)
+       `(let (,var (,f ,name))
           (after (do ,@body) (close ,var))))
 
   (mac w/infile (var name . body)
@@ -866,7 +853,7 @@
 
 (def rand-string (n)
   (let c "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    (with (nc 62 s (newstring n) i 0)
+    (let (nc 62 s (newstring n) i 0)
       (w/infile str "/dev/urandom"
         (while (< i n)
           (let x (readb str)
@@ -884,7 +871,7 @@
       (w/uniq gs
         `(let ,gs ,s
            (forlen index ,gs
-             (let ,var (,gs index)
+             (let (,var (,gs index))
                ,@body))))))
 
 (def best (f seq)
@@ -900,11 +887,11 @@
 
 ; (mac max2 (x y)
 ;   (w/uniq (a b)
-;     `(with (,a ,x ,b ,y) (if (> ,a ,b) ,a ,b))))
+;     `(let (,a ,x ,b ,y) (if (> ,a ,b) ,a ,b))))
 
 (def most (f seq) 
   (unless (no seq)
-    (withs (wins (car seq) topscore (f wins))
+    (let (wins (car seq) topscore (f wins))
       (each elt (cdr seq)
         (let score (f elt)
           (if (> score topscore) (= wins elt topscore score))))
@@ -940,7 +927,7 @@
 ; right no of args and didn't have to call apply (or list if 1 arg).
 
 (def memo (f)
-  (with (cache (table) nilcache (table))
+  (let (cache (table) nilcache (table))
     (fn args
       (or (cache args)
           (and (no (nilcache args))
@@ -1108,14 +1095,14 @@
 ; you only want the first.  Not a big problem.
 
 (def round (n)
-  (withs (base (trunc n) rem (abs (- n base)))
+  (let (base (trunc n) rem (abs (- n base)))
     (if (> rem 1/2) ((if (> n 0) + -) base 1)
         (< rem 1/2) base
         (odd base)  ((if (> n 0) + -) base 1)
                     base)))
 
 (def roundup (n)
-  (withs (base (trunc n) rem (abs (- n base)))
+  (let (base (trunc n) rem (abs (- n base)))
     (if (>= rem 1/2) 
         ((if (> n 0) + -) base 1)
         base)))
@@ -1140,7 +1127,7 @@
 ; by Eli Barzilay for MzLib; re-written in Arc.
 
 (def mergesort (less? lst)
-  (with (n (len lst))
+  (let (n (len lst))
     (if (<= n 1) lst
         ; ; check if the list is already sorted
         ; ; (which can be a common case, eg, directory lists).
@@ -1152,21 +1139,21 @@
         ((afn (n)
            (if (> n 2)
                 ; needs to evaluate L->R
-                (withs (j (/ (if (even n) n (- n 1)) 2) ; faster than round
-                        a (self j)
-                        b (self (- n j)))
+                (let (j (/ (if (even n) n (- n 1)) 2) ; faster than round
+                      a (self j)
+                      b (self (- n j)))
                   (merge less? a b))
                ; the following case just inlines the length 2 case,
                ; it can be removed (and use the above case for n>1)
                ; and the code still works, except a little slower
                (is n 2)
-                (with (x (car lst) y (cadr lst) p lst)
+                (let (x (car lst) y (cadr lst) p lst)
                   (= lst (cddr lst))
                   (when (less? y x) (scar p y) (scar (cdr p) x))
                   (scdr (cdr p) nil)
                   p)
                (is n 1)
-                (with (p lst)
+                (let (p lst)
                   (= lst (cdr lst))
                   (scdr p nil)
                   p)
@@ -1220,7 +1207,7 @@
 (= templates* (table))
 
 (mac deftem (tem . fields)
-  (withs (name (carif tem) includes (if (acons tem) (cdr tem)))
+  (let (name (carif tem) includes (if (acons tem) (cdr tem)))
     `(= (templates* ',name) 
         (+ (mappend templates* ',(rev includes))
            (list ,@(map (fn ((k v)) `(list ',k (fn () ,v)))
@@ -1250,7 +1237,7 @@
 ; Note: discards fields not defined by the template.
 
 (def templatize (tem raw)
-  (with (x (inst tem) fields (if (acons tem) tem (templates* tem)))
+  (let (x (inst tem) fields (if (acons tem) tem (templates* tem)))
     (each (k v) raw
       (when (assoc k fields)
         (= (x k) v)))
@@ -1275,7 +1262,7 @@
 ; could use a version for fns of 1 arg at least
 
 (def cache (timef valf)
-  (with (cached nil gentime nil)
+  (let (cached nil gentime nil)
     (fn ()
       (unless (and cached (< (since gentime) (timef)))
         (= cached  (valf)
@@ -1304,11 +1291,11 @@
   (rev (nthcdr 3 (timedate s))))
 
 (def datestring ((o s (seconds)))
-  (let (y m d) (date s)
+  (let ((y m d) (date s))
     (string y "-" (if (< m 10) "0") m "-" (if (< d 10) "0") d)))
 
 (def count (test x)
-  (with (n 0 testf (testify test))
+  (let (n 0 testf (testify test))
     (each elt x
       (if (testf elt) (++ n)))
     n))
@@ -1325,7 +1312,7 @@
   `(while (no ,test) ,@body))
 
 (def before (x y seq (o i 0))
-  (with (xp (pos x seq i) yp (pos y seq i))
+  (let (xp (pos x seq i) yp (pos y seq i))
     (and xp (or (no yp) (< xp yp)))))
 
 (def orf fns
@@ -1372,7 +1359,7 @@
 
 (mac conswhen (f x y)
   (w/uniq (gf gx)
-   `(with (,gf ,f ,gx ,x)
+   `(let (,gf ,f ,gx ,x)
       (if (,gf ,gx) (cons ,gx ,y) ,y))))
 
 ; Could combine with firstn if put f arg last, default to (fn (x) t).
@@ -1384,7 +1371,7 @@
                              (retrieve n f (cdr xs))))
 
 (def dedup (xs)
-  (with (h (table) acc nil)
+  (let (h (table) acc nil)
     (each x xs
       (unless (h x)
         (push x acc)
@@ -1404,7 +1391,7 @@
           (counts (cdr seq) c))))
 
 (def commonest (seq)
-  (with (winner nil n 0)
+  (let (winner nil n 0)
     (each (k v) (counts seq)
       (when (> v n) (= winner k n v)))
     (list winner n)))
@@ -1423,7 +1410,7 @@
 
   (def parse-format (str)
     (accum a
-      (with (chars nil  i -1)
+      (let (chars nil i -1)
         (w/instring s str
           (whilet c (readc s)
             (case c 
@@ -1498,7 +1485,7 @@
 
 (mac noisy-each (n var val . body)
   (w/uniq (gn gc)
-    `(with (,gn ,n ,gc 0)
+    `(let (,gn ,n ,gc 0)
        (each ,var ,val
          (when (multiple (++ ,gc) ,gn)
            (pr ".") 
@@ -1511,7 +1498,7 @@
 (mac point (name . body)
   (w/uniq (g p)
     `(ccc (fn (,g)
-            (let ,name (fn ((o ,p)) (,g ,p))
+            (let (,name (fn ((o ,p)) (,g ,p)))
               ,@body)))))
 
 (mac catch body
@@ -1589,8 +1576,8 @@
       ,x)))
 
 (mac or= (place expr)
-  (let (binds val setter) (setforms place)
-    `(atwiths ,binds
+  (let ((binds val setter) (setforms place))
+    `(atlet ,binds
        (or ,val (,setter ,expr)))))
 
 (= hooks* (table))

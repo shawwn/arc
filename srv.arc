@@ -46,13 +46,13 @@
       (errsafe (handle-request-1 s))))
 
 (def handle-request-1 (s)
-  (let (i o ip) (socket-accept s)
+  (let ((i o ip) (socket-accept s))
     (if (and (or (ignore-ips* ip) (abusive-ip ip))
              (++ (spurned* ip 0)))
         (force-close i o)
         (do (++ requests*)
             (++ (requests/ip* ip 0))
-            (with (th1 nil th2 nil)
+            (let (th1 nil th2 nil)
               (= th1 (thread
                        (after (handle-request-thread i o ip)
                               (close i o)
@@ -89,13 +89,13 @@
               (enq now (req-times* ip))))))
 
 (def handle-request-thread (i o ip)
-  (with (nls 0 lines nil line nil responded nil t0 (msec))
+  (let (nls 0 lines nil line nil responded nil t0 (msec))
     (after
       (whilet c (unless responded (readc i))
         (if srv-noisy* (pr c))
         (if (is c #\newline)
             (if (is (++ nls) 2) 
-                (let (type op args n cooks) (parseheader (rev lines))
+                (let ((type op args n cooks) (parseheader (rev lines)))
                   (let t1 (msec)
                     (case type
                       get  (respond o op args cooks ip)
@@ -112,7 +112,7 @@
   (harvest-fnids))
 
 (def log-request (type op args cooks ip t0 t1)
-  (with (parsetime (- t1 t0) respondtime (- (msec) t1))
+  (let (parsetime (- t1 t0) respondtime (- (msec) t1))
     (srvlog 'srv ip 
                  parsetime 
                  respondtime 
@@ -251,7 +251,7 @@ Connection: close"))
     (apply pr msg args)))
 
 (def parseheader (lines)
-  (let (type op args) (parseurl (car lines))
+  (let ((type op args) (parseurl (car lines)))
     (list type
           op
           args
@@ -268,13 +268,13 @@ Connection: close"))
 ; (parseurl "GET /p1?foo=bar&ug etc") -> (get p1 (("foo" "bar") ("ug")))
 
 (def parseurl (s)
-  (let (type url) (tokens s)
-    (let (base args) (tokens url #\?)
+  (let ((type url) (tokens s)
+        (base args) (tokens url #\?))
       (list (sym (downcase type))
             (sym (cut base 1))
             (if args
                 (parseargs args)
-                nil)))))
+                nil))))
 
 ; I don't urldecode field names or anything in cookies; correct?
 
@@ -345,11 +345,11 @@ Connection: close"))
               (wipe (fns* id))
               t))
           timed-fnids*)
-    (atlet nharvest (trunc (/ n 10))
-      (let (kill keep) (split (rev fnids*) nharvest)
-        (= fnids* (rev keep)) 
-        (each id kill 
-          (wipe (fns* id)))))))
+    (atlet (nharvest (trunc (/ n 10))
+            (kill keep) (split (rev fnids*) nharvest))
+      (= fnids* (rev keep)) 
+      (each id kill 
+        (wipe (fns* id))))))
 
 (= fnurl* "/x" rfnurl* "/r" rfnurl2* "/y" jfnurl* "/a")
 
@@ -456,8 +456,8 @@ Connection: close"))
 
 (mac taform (lasts f . body)
   (w/uniq (gl gf gi ga)
-    `(withs (,gl ,lasts
-             ,gf (fn (,ga) (prn) (,f ,ga)))
+    `(let (,gl ,lasts
+           ,gf (fn (,ga) (prn) (,f ,ga)))
        (tag (form method 'post action fnurl*)
          (fnid-field (if ,gl (timed-fnid ,gl ,gf) (fnid ,gf)))
          ,@body))))
@@ -471,7 +471,7 @@ Connection: close"))
 
 (mac tarform (lasts f . body)
   (w/uniq (gl gf)
-    `(withs (,gl ,lasts ,gf ,f)
+    `(let (,gl ,lasts ,gf ,f)
        (tag (form method 'post action rfnurl*)
          (fnid-field (if ,gl (timed-fnid ,gl ,gf) (fnid ,gf)))
          ,@body))))
@@ -503,7 +503,7 @@ Connection: close"))
 (def logfile-name (type)
   (string logdir* type "-" (memodate)))
 
-(with (lastasked nil lastval nil)
+(let (lastasked nil lastval nil)
 
 (def memodate ()
   (let now (seconds)

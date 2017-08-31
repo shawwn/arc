@@ -81,7 +81,7 @@
 
 (mac litmatch (pat string (o start 0))
   (w/uniq (gstring gstart)
-    `(with (,gstring ,string ,gstart ,start)
+    `(let (,gstring ,string ,gstart ,start)
        (unless (> (+ ,gstart ,(len pat)) (len ,gstring))
          (and ,@(let acc nil
                   (forlen i pat
@@ -98,7 +98,7 @@
 
 (mac endmatch (pat string)
   (w/uniq (gstring glen)
-    `(withs (,gstring ,string ,glen (len ,gstring))
+    `(let (,gstring ,string ,glen (len ,gstring))
        (unless (> ,(len pat) (len ,gstring))
          (and ,@(let acc nil
                   (forlen i pat
@@ -159,8 +159,8 @@
 (def nonblank (s) (unless (blank s) s))
 
 (def trim (s (o where 'both) (o test whitec))
-  (withs (f   (testify test)
-           p1 (pos ~f s))
+  (let (f  (testify test)
+        p1 (pos ~f s))
     (if p1
         (cut s 
              (if (in where 'front 'both) p1 0)
@@ -172,36 +172,36 @@
         "")))
 
 (def num (n (o digits 2) (o trail-zeros nil) (o init-zero nil))
-  (withs (comma
-          (fn (i)
-            (tostring
-              (map [apply pr (rev _)]
-                   (rev (intersperse '(#\,)
-                                     (tuples (rev (coerce (string i) 'cons))
-                                             3))))))
-          abrep
-          (let a (abs n)
-            (if (< digits 1)
-                 (comma (roundup a))
-                (exact a)
-                 (string (comma a)
-                         (when (and trail-zeros (> digits 0))
-                           (string "." (newstring digits #\0))))
-                 (withs (d (expt 10 digits)
-                         m (/ (roundup (* a d)) d)
-                         i (trunc m)
-                         r (abs (trunc (- (* m d) (* i d)))))
-                   (+ (if (is i 0) 
-                          (if (or init-zero (is r 0)) "0" "") 
-                          (comma i))
-                      (withs (rest   (string r)
-                              padded (+ (newstring (- digits (len rest)) #\0)
-                                        rest)
-                              final  (if trail-zeros
-                                         padded
-                                         (trim padded 'end [is _ #\0])))
-                        (string (unless (empty final) ".")
-                                final)))))))
+  (let (comma
+        (fn (i)
+          (tostring
+            (map [apply pr (rev _)]
+                 (rev (intersperse '(#\,)
+                                   (tuples (rev (coerce (string i) 'cons))
+                                           3))))))
+        abrep
+        (let a (abs n)
+          (if (< digits 1)
+               (comma (roundup a))
+              (exact a)
+               (string (comma a)
+                       (when (and trail-zeros (> digits 0))
+                         (string "." (newstring digits #\0))))
+               (let (d (expt 10 digits)
+                     m (/ (roundup (* a d)) d)
+                     i (trunc m)
+                     r (abs (trunc (- (* m d) (* i d)))))
+                 (+ (if (is i 0) 
+                        (if (or init-zero (is r 0)) "0" "") 
+                        (comma i))
+                    (let (rest   (string r)
+                          padded (+ (newstring (- digits (len rest)) #\0)
+                                    rest)
+                          final  (if trail-zeros
+                                     padded
+                                     (trim padded 'end [is _ #\0])))
+                      (string (unless (empty final) ".")
+                              final)))))))
     (if (and (< n 0) (find [and (digit _) (isnt _ #\0)] abrep))
         (+ "-" abrep)
         abrep)))

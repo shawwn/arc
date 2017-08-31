@@ -2,8 +2,8 @@
 
 
 (def color (r g b)
-  (with (c (table) 
-         f (fn (x) (if (< x 0) 0 (> x 255) 255 x)))
+  (let (c (table) 
+        f (fn (x) (if (< x 0) 0 (> x 255) 255 x)))
     (= (c 'r) (f r) (c 'g) (f g) (c 'b) (f b))
     c))
 
@@ -11,9 +11,9 @@
 
 (defmemo hex>color (str)
   (and (is (len str) 6)
-       (with (r (dehex (cut str 0 2))
-              g (dehex (cut str 2 4))
-              b (dehex (cut str 4 6)))
+       (let (r (dehex (cut str 0 2))
+             g (dehex (cut str 2 4))
+             b (dehex (cut str 4 6)))
          (and r g b
               (color r g b)))))
 
@@ -177,7 +177,7 @@
 (def tag-options (spec options)
   (if (no options)
       '()
-      (let ((opt val) . rest) options
+      (let (((opt val) . rest) options)
         (let meth (if (is opt 'style) opstring (opmeth spec opt))
           (if meth
               (if val
