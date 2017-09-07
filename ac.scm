@@ -8,7 +8,7 @@
 (require (lib "pretty.ss"))
 (require (lib "foreign.ss"))
 (require racket/unsafe/ops)
-(require (only racket syntax->datum))
+(require (only racket/base syntax->datum))
 (unsafe!)
 
 ; compile an Arc expression into a Scheme expression,
